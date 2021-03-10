@@ -210,6 +210,14 @@ local schema: {string:SchemaElem} = {
     description = [[
         Print diagnostic messages.
     ]]
+  },
+
+  yadm = {
+    type = 'table',
+    default = [[{ enable = false }]],
+    description = [[
+        Enable yadm support.
+    ]]
   }
 }
 

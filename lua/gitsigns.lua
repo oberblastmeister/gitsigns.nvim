@@ -17,8 +17,11 @@ local mk_repeatable = require('gitsigns/repeat').mk_repeatable
 
 local apply_mappings = require('gitsigns/mappings')
 
-local git = require('gitsigns/git')
 local util = require('gitsigns/util')
+
+local repo = require('gitsigns/git')
+local git = repo.build('git')
+local yadm
 
 local gs_hunks = require("gitsigns/hunks")
 local create_patch = gs_hunks.create_patch
@@ -141,13 +144,14 @@ local update = async(function(bufnr)
    await_main()
    local buftext = api.nvim_buf_get_lines(bufnr, 0, -1, false)
    local stage = bcache.has_conflicts and 1 or 0
+   local vcs = bcache.vcs
 
    if config._use_internal_diff then
-      local staged_text = await(git.get_staged_text, bcache.toplevel, bcache.relpath, stage)
+      local staged_text = await(vcs.get_staged_text, bcache.toplevel, bcache.relpath, stage)
       bcache.hunks = diff.run_diff(staged_text, buftext, config.diff_algorithm)
    else
-      await(git.get_staged, bcache.toplevel, bcache.relpath, stage, bcache.staged)
-      bcache.hunks = await(git.run_diff, bcache.staged, buftext, config.diff_algorithm)
+      await(vcs.get_staged, bcache.toplevel, bcache.relpath, stage, bcache.staged)
+      bcache.hunks = await(vcs.run_diff, bcache.staged, buftext, config.diff_algorithm)
    end
    bcache.pending_signs = process_hunks(bcache.hunks)
 
@@ -184,13 +188,13 @@ local watch_index = async(function(bufnr, gitdir, on_change)
 end)
 
 local add_to_index = async(function(bcache)
-   local relpath, toplevel = bcache.relpath, bcache.toplevel
+   local vcs, relpath, toplevel = bcache.vcs, bcache.relpath, bcache.toplevel
 
-   await(git.add_file, toplevel, relpath)
+   await(vcs.add_file, toplevel, relpath)
 
 
    _, bcache.object_name, bcache.mode_bits, bcache.has_conflicts = 
-   await(git.file_info, relpath, toplevel)
+   await(vcs.file_info, relpath, toplevel)
 end)
 
 local stage_hunk = sync(function()
@@ -218,7 +222,7 @@ local stage_hunk = sync(function()
 
    local lines = create_patch(bcache.relpath, hunk, bcache.mode_bits)
 
-   await(git.stage_lines, bcache.toplevel, lines)
+   await(bcache.vcs.stage_lines, bcache.toplevel, lines)
 
    table.insert(bcache.staged_diffs, hunk)
 
@@ -297,7 +301,7 @@ local undo_stage_hunk = sync(function()
 
    local lines = create_patch(bcache.relpath, hunk, bcache.mode_bits, true)
 
-   await(git.stage_lines, bcache.toplevel, lines)
+   await(bcache.vcs.stage_lines, bcache.toplevel, lines)
 
    table.remove(bcache.staged_diffs)
 
@@ -399,15 +403,16 @@ local function index_update_handler(cbuf)
       dprint('Index update', cbuf, 'watcher_cb')
       local bcache = get_cache(cbuf)
       local file_dir = dirname(bcache.file)
+      local vcs = bcache.vcs
 
       local _, _, abbrev_head0 = 
-      await(git.get_repo_info, file_dir)
+      await(vcs.get_repo_info, file_dir)
 
       Status:update_head(cbuf, abbrev_head0)
       bcache.abbrev_head = abbrev_head0
 
       local _, object_name0, mode_bits0, has_conflicts = 
-      await(git.file_info, bcache.file, bcache.toplevel)
+      await(vcs.file_info, bcache.file, bcache.toplevel)
 
       if object_name0 == bcache.object_name then
          dprint('File not changed', cbuf, 'watcher_cb')
@@ -448,6 +453,24 @@ local function on_lines(buf, last_orig, last_new)
    update_debounced(buf)
 end
 
+
+local try_yadm = function(file)
+   if not yadm then
+
+      yadm = repo.build('yadm')
+   end
+
+   local file_dir = dirname(file)
+
+
+   local is_yadm = await(yadm.is_managed, file, file_dir)
+   if not is_yadm then
+      dprint('Not managed by yadm', nil, 'try_yadm')
+      return
+   end
+   return await(yadm.get_repo_info, file_dir)
+end
+
 local attach = throttle_leading(100, sync(function()
    local cbuf = current_buf()
    if cache[cbuf] ~= nil then
@@ -484,9 +507,21 @@ local attach = throttle_leading(100, sync(function()
    local toplevel, gitdir, abbrev_head = 
    await(git.get_repo_info, file_dir)
 
+   local vcs = git
+
    if not gitdir then
       dprint('Not in git repo', cbuf, 'attach')
-      return
+
+      if not config.yadm.enable then
+         return
+      end
+
+      dprint('Trying yadm', cbuf, 'attach')
+      toplevel, gitdir, abbrev_head = try_yadm(file)
+      if not gitdir then
+         return
+      end
+      vcs = yadm
    end
 
    Status:update_head(cbuf, abbrev_head)
@@ -502,7 +537,7 @@ local attach = throttle_leading(100, sync(function()
    local staged = os.tmpname()
 
    local relpath, object_name, mode_bits, has_conflicts = 
-   await(git.file_info, file, toplevel)
+   await(vcs.file_info, file, toplevel)
 
    if not relpath then
       dprint('Cannot resolve file in repo', cbuf, 'attach')
@@ -511,6 +546,7 @@ local attach = throttle_leading(100, sync(function()
 
    cache[cbuf] = {
       file = file,
+      vcs = vcs,
       relpath = relpath,
       object_name = object_name,
       mode_bits = mode_bits,
@@ -644,7 +680,7 @@ local blame_line = sync(function()
 
    local buftext = api.nvim_buf_get_lines(bufnr, 0, -1, false)
    local lnum = api.nvim_win_get_cursor(0)[1]
-   local result = await(git.run_blame, bcache.file, bcache.toplevel, buftext, lnum)
+   local result = await(bcache.vcs.run_blame, bcache.file, bcache.toplevel, buftext, lnum)
 
    local date = os.date('%Y-%m-%d %H:%M', tonumber(result['author-time']))
    local lines = {

@@ -211,6 +211,14 @@ local schema = {
         Print diagnostic messages.
     ]],
    },
+
+   yadm = {
+      type = 'table',
+      default = [[{ enable = false }]],
+      description = [[
+        Enable yadm support.
+    ]],
+   },
 }
 
 local function validate_config(config)

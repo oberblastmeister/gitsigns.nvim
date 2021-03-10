@@ -3,6 +3,7 @@ global _: any
 
 global record CacheEntry
   file          : string
+  vcs           : VCS
   relpath       : string
   object_name   : string
   mode_bits     : string
@@ -58,6 +59,10 @@ global record Config
     status_formatter: function(StatusObj): string
     _use_internal_diff: boolean
     use_decoration_api: boolean
+    record YadmConfig
+      enable: boolean
+    end
+    yadm: YadmConfig
 end
 
 global enum SignType
@@ -93,5 +98,20 @@ global record Hunk
 
   added: Node
   removed: Node
+end
+
+global type cb_function = function(function(...: any))
+global type async_function = function(...: any): cb_function
+
+global record VCS
+  get_staged_text: function(string, string, number): cb_function
+  get_staged: function(string, string, number, string): cb_function
+  run_diff: function(string, {string}, string): cb_function
+  add_file: function(string, string): cb_function
+  stage_lines: function(string, {string}): cb_function
+  file_info: function(string, string): cb_function
+  run_blame: function(string, string, {string}, number): cb_function
+  get_repo_info: function(string): cb_function
+  is_managed: function(string, string): cb_function
 end
 

@@ -36,9 +36,6 @@
 --     timer_start(timer, timeout, repeat): function(callback)
 --
 
-global type cb_function = function(function(...: any))
-global type async_function = function(...: any): cb_function
-
 local co = coroutine
 
 local M = {}

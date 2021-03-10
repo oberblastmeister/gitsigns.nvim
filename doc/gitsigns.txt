@@ -293,6 +293,13 @@ debug_mode                                        *gitsigns-config-debug_mode*
 
         Print diagnostic messages.
 
+yadm                                                    *gitsigns-config-yadm*
+        Type: `table`, Default:
+>
+        { enable = false }
+<
+        Enable yadm support.
+
 ==============================================================================
 STATUSLINE                                               *gitsigns-statusline*
 

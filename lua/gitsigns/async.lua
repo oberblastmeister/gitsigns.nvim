@@ -36,9 +36,6 @@
 
 
 
- cb_function = {}
- async_function = {}
-
 local co = coroutine
 
 local M = {}
