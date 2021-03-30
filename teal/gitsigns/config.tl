@@ -52,13 +52,13 @@ M.schema = {
   signs = {
     type = 'table',
     deep_extend = true,
-    default = [[{
+    default = {
       add          = {hl = 'GitSignsAdd'   , text = '│', numhl='GitSignsAddNr'   , linehl='GitSignsAddLn'    },
       change       = {hl = 'GitSignsChange', text = '│', numhl='GitSignsChangeNr', linehl='GitSignsChangeLn' },
       delete       = {hl = 'GitSignsDelete', text = '_', numhl='GitSignsDeleteNr', linehl='GitSignsDeleteLn' },
       topdelete    = {hl = 'GitSignsDelete', text = '‾', numhl='GitSignsDeleteNr', linehl='GitSignsDeleteLn' },
       changedelete = {hl = 'GitSignsChange', text = '~', numhl='GitSignsChangeNr', linehl='GitSignsChangeLn' },
-    }]],
+    },
     description = [[
         Configuration for signs:
           • `hl` specifies the highlight group to use for the sign.
@@ -86,24 +86,24 @@ M.schema = {
 
   keymaps = {
     type = 'table',
-    default = [[{
-      -- Default keymap options
-      noremap = true,
-      buffer = true,
+    default = {
+        -- Default keymap options
+            noremap = true,
+        buffer = true,
 
-      ['n ]c'] = { expr = true, "&diff ? ']c' : '<cmd>lua require\"gitsigns\".next_hunk()<CR>'"},
-      ['n [c'] = { expr = true, "&diff ? '[c' : '<cmd>lua require\"gitsigns\".prev_hunk()<CR>'"},
+        ['n ]c'] = { expr = true, "&diff ? ']c' : '<cmd>lua require\"gitsigns\".next_hunk()<CR>'"},
+        ['n [c'] = { expr = true, "&diff ? '[c' : '<cmd>lua require\"gitsigns\".prev_hunk()<CR>'"},
 
-      ['n <leader>hs'] = '<cmd>lua require"gitsigns".stage_hunk()<CR>',
-      ['n <leader>hu'] = '<cmd>lua require"gitsigns".undo_stage_hunk()<CR>',
-      ['n <leader>hr'] = '<cmd>lua require"gitsigns".reset_hunk()<CR>',
-      ['n <leader>hR'] = '<cmd>lua require"gitsigns".reset_buffer()<CR>',
-      ['n <leader>hp'] = '<cmd>lua require"gitsigns".preview_hunk()<CR>',
-      ['n <leader>hb'] = '<cmd>lua require"gitsigns".blame_line()<CR>',
+        ['n <leader>hs'] = '<cmd>lua require"gitsigns".stage_hunk()<CR>',
+        ['n <leader>hu'] = '<cmd>lua require"gitsigns".undo_stage_hunk()<CR>',
+        ['n <leader>hr'] = '<cmd>lua require"gitsigns".reset_hunk()<CR>',
+        ['n <leader>hR'] = '<cmd>lua require"gitsigns".reset_buffer()<CR>',
+        ['n <leader>hp'] = '<cmd>lua require"gitsigns".preview_hunk()<CR>',
+        ['n <leader>hb'] = '<cmd>lua require"gitsigns".blame_line()<CR>',
 
-      ['o ih'] = ':<C-U>lua require"gitsigns".select_hunk()<CR>',
-      ['x ih'] = ':<C-U>lua require"gitsigns".select_hunk()<CR>'
-    }]],
+        ['o ih'] = ':<C-U>lua require"gitsigns".select_hunk()<CR>',
+        ['x ih'] = ':<C-U>lua require"gitsigns".select_hunk()<CR>'
+    },
     description = [[
         Keymaps to set up when attaching to a buffer.
 
@@ -118,7 +118,7 @@ M.schema = {
 
   watch_index = {
     type = 'table',
-    default = [[{ interval = 1000 }]],
+    default = { interval = 1000 },
     description = [[
         When opening a file, a libuv watcher is placed on the respective
         `.git/index` file to detect when changes happen to use as a trigger to
@@ -173,7 +173,7 @@ M.schema = {
     type = 'string',
 
     -- Get algorithm from 'diffopt'
-    default = [[function()
+    default = (function()
       local algo = 'myers'
       for o in vim.gsplit(vim.o.diffopt, ',') do
         if vim.startswith(o, 'algorithm:') then
@@ -181,7 +181,7 @@ M.schema = {
         end
       end
       return algo
-    end]],
+    end)(),
     default_help = "taken from 'diffopt'",
     description = [[
         Diff algorithm to pass to `git diff` .
@@ -215,14 +215,14 @@ M.schema = {
 
   status_formatter = {
     type = 'function',
-    default = [[function(status)
+    default = function(status)
       local added, changed, removed = status.added, status.changed, status.removed
       local status_txt = {}
       if added   and added   > 0 then table.insert(status_txt, '+'..added  ) end
       if changed and changed > 0 then table.insert(status_txt, '~'..changed) end
       if removed and removed > 0 then table.insert(status_txt, '-'..removed) end
       return table.concat(status_txt, ' ')
-    end]],
+    end,
     description = [[
         Function used to format `b:gitsigns_status`.
     ]]
@@ -246,13 +246,13 @@ M.schema = {
 
   use_internal_diff = {
     type = 'boolean',
-    default = [[function()
+    default = (function()
       if not jit or jit.os == "Windows" then
         return false
       else
         return true
       end
-    end]],
+    end)(),
     default_help = "true if luajit is present (windows unsupported)",
     description = [[
         Use Neovim's built in xdiff library for running diffs.
@@ -312,19 +312,19 @@ end
 
 local function resolve_default(schema_elem: SchemaElem): any
   local v = schema_elem
-  local default = v.default
-  if default is string and vim.startswith(default, 'function(') then
-    local d = loadstring('return '..default)() as function
-    if v.type == 'function' then
-      return d
-    else
-      return d()
-    end
-  elseif default is string and vim.startswith(default, '{') then
-    return loadstring('return '..default)()
-  else
-    return default
-  end
+  return v.default
+  -- if default is string and vim.startswith(default, 'function(') then
+    -- local d = loadstring('return '..default)() as function
+    -- if v.type == 'function' then
+      -- return d
+    -- else
+      -- return d()
+    -- end
+  -- elseif default is string and vim.startswith(default, '{') then
+    -- return loadstring('return '..default)()
+  -- else
+    -- return default
+  -- end
 end
 
 function M.process(user_config: {string:any}): {string: any}
